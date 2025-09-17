@@ -19,3 +19,4 @@ jobs:
     uses: bandwidth-gig-guide/ci-workflows/.github/workflows/build-publish.yaml@main
     with:
       image_name: service-monitor
+      
