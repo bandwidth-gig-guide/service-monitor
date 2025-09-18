@@ -1,4 +1,4 @@
-name: Call Reusable Action
+name: Build and Publish Docker Image
 
 permissions:
   packages: write
@@ -16,7 +16,48 @@ on:
 
 jobs:
   build:
-    uses: bandwidth-gig-guide/ci-workflows/.github/workflows/build-publish.yaml@main
-    with:
-      image_name: service-monitor
-      
+    runs-on: ubuntu-latest
+
+    env:
+      TAG_DEV: dev
+      TAG_PROD: latest
+      IMAGE_NAME: service-monitor
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set appropriate tag for push event.
+      run: |
+        if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+          if [[ "$GITHUB_REF" == "refs/heads/master" ]]; then
+            echo "TAG=$TAG_PROD" >> $GITHUB_ENV
+          elif [[ "$GITHUB_REF" == "refs/heads/dev" ]]; then
+            echo "TAG=$TAG_DEV" >> $GITHUB_ENV
+          fi
+        fi
+
+    - name: Set appropriate tag for PR event.
+      run: |
+        if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+          if [[ "${{ github.event.pull_request.base.ref }}" == "master" ]]; then
+            echo "TAG=$TAG_PROD" >> $GITHUB_ENV
+          elif [[ "${{ github.event.pull_request.base.ref }}" == "dev" ]]; then
+            echo "TAG=$TAG_DEV" >> $GITHUB_ENV
+          fi
+        fi
+
+    - name: Build Docker image
+      run: |
+        docker build -t ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME:$TAG .
+
+    - name: Push Docker image to GitHub Container Registry
+      run: |
+        docker push ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME:$TAG
